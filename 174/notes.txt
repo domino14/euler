@@ -1,0 +1,18 @@
+- difference of squares problem
+- how many different ways can we express t as a difference of two squares?
+- for the example given t = 32 => 6^2 - 2^2 or 9^2 - 7^2
+t = a^2 - b^2
+
+ceil the square root of the number.. that is your starting number. 'a' above can NOT be 
+smaller than this ceiled sqroot (call it c).
+
+cheap method -- take c, square it, subtract iteration variable squared (iteration variable goes up to c - 1)
+then keep increasing c. stop when c^2 - (c-2)^2 > t
+     	  	     	     	  c^2 - (c^2-4c+4) > t
+				  4c - 4 > t
+
+a more reasonable stopping point is when we just don't have that many squares
+stop when (c-2)*4 + 4 > t (same thing dammit)
+
+
+to possess vertical and horizontal symmetry a&b must both be odd or even
