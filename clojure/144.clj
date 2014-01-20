@@ -7,10 +7,16 @@
 
 ;;; Intersection of ellipse and line
 ;;; y = m(x - x1) + y1 -> plug into ellipse equation above
-;;; Result:
+;;; Result:2
 ;;; x = (-mb +/- 2 * sqrt(-b^2 + 25m^2 + 100)) / (m^2 + 4)
 ;;; y = mx + b
 ;;; where b = y1 - mx1
+
+(ns euler-144
+  (:require [utils.vector-math :refer [magnitude dot cos-theta
+                                       euclidean-distance]]))
+
+(def EPSILON 1e-8)
 
 (defn ellipse-line-inter
   "The intersection points between a line and the ellipse."
@@ -23,21 +29,6 @@
         x-plus (/ (+ (* (- m) b) tmp) den)
         x-minus (/ (- (* (- m) b) tmp) den)]
     [[x-plus (+ (* m x-plus) b)] [x-minus (+ (* m x-minus) b)]]))
-
-(defn magnitude
-  "Magnitude of vector."
-  [v]
-  (Math/sqrt (+ (* (first v) (first v)) (* (second v) (second v)))))
-
-(defn dot
-  "Dot product of two vectors."
-  [A B]
-  (+ (* (first A) (first B)) (* (second A) (second B))))
-
-(defn cos-theta
-  "Cosine of angle between two vectors."
-  [A B]
-  (/ (dot A B) (* (magnitude A) (magnitude B))))
 
 (defn pts-to-vector
   "Given a start and a finish point, finds the vector start->finish."
@@ -70,9 +61,21 @@
         y-prime (+ (* term1 sinangle) (* term2 cosangle))]
     [x-prime y-prime]))
 
+(defn pts-close-enough?
+  "Returns true if the Euclidean distance between two points is 'close enough'."
+  [pt1 pt2]
+  (< (euclidean-distance pt1 pt2) EPSILON)
+)
+
+(defn escaped-hole?
+  "Did the laser beam go through the hole at the top (-0.01 <= x <= 0.01)?"
+  [pt]
+  (and (<= -0.01 (first pt) 0.01) (> (second pt) 0))
+)
 
 (defn next-point
-  "Given a first pt and a second pt, finds the next intersection on ellipse."
+  "Given a first pt and a second pt, finds the next intersection on ellipse and
+  the vector pointing at this intersection point."
   [pt-1 pt-2]
   ;; Find the normal at pt-2
   (let [nslope (normal-slope pt-2)
@@ -81,35 +84,28 @@
         flipped-vec [(- (first incident-vec)) (- (second incident-vec))]
         cosangle (cos-theta incident-vec nvec)
         sinangle (Math/sqrt (- 1 (* cosangle cosangle)))
-        reflected-vec (rotate-vec-twice flipped-vec cosangle sinangle)]
+        reflected-vec (rotate-vec-twice flipped-vec cosangle sinangle)
+        ;; reflected-vec is the final reflected vector. Find out where this
+        ;; hits the ellipse.
+        reflected-slope (/ (second reflected-vec) (first reflected-vec))
+        inter-pts (ellipse-line-inter reflected-slope (first pt-2)
+                   (second pt-2))]
+    ;; Since there are two intersection points we need to throw one out, the
+    ;; one that is basically pt-2.
+    ;; XXX: I don't really like this. There should be a way to figure out which
+    ;; intersection point to throw away from the math.
+    (if (pts-close-enough? (first inter-pts) pt-2)
+      [(second inter-pts) reflected-vec]
+      [(first inter-pts) reflected-vec])))
 
-    ;; reflected-vec is the final reflected vector. Find out where this hits
-    ;; the ellipse.
+;; Numerical errors galore, I hope this works.
+(loop [pt1 [0 10.1]
+       pt2 [1.4 -9.6]
+       reflect-count 1]
+  (println "Reflection" reflect-count pt2)
+  (let [nxt (next-point pt1 pt2)
+        nxt-pt (first nxt)]   ; nxt is a vector [point, incident_vec]
+    (if (not (escaped-hole? nxt-pt))
+      (recur pt2 nxt-pt (inc reflect-count))
+      (println "Escaped hole after" reflect-count "bouncies. (" nxt-pt ")"))))
 
-    (println reflected-vec)
-    (ellipse-line-inter (/ (second reflected-vec) (first reflected-vec))
-      (first pt-2) (second pt-2))
-
-    )
-
-
-  )
-
-; (defn find-intersection-pt
-;   "Given an origin pt, finds the next intersection on the ellipse"
-;   []
-;   ())
-
-; (defn angle-of-incidence
-;   "Given a start and a finish pt, finds the angle of incidence at the point
-;   of intersection of the ellipse."
-;   [start finish]
-;   ;; The finish point is on the ellipse, so find the slope of the normal here.
-;   (let [normal-slope ((second finish) (* 4 (first finish)))
-;         A (pts-to-vector start finish)
-;         B (to-vector finish)]
-
-
-
-;   )
-; )
