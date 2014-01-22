@@ -13,8 +13,7 @@
 ;;; where b = y1 - mx1
 
 (ns euler-144
-  (:require [utils.vector-math :refer [magnitude dot cos-theta
-                                       euclidean-distance]]))
+  (:require [utils.vector-math :refer [cos-theta euclidean-distance]]))
 
 (def EPSILON 1e-8)
 
@@ -34,13 +33,6 @@
   "Given a start and a finish point, finds the vector start->finish."
   [start finish]
   [(- (first finish) (first start)) (- (second finish) (second start))])
-
-(defn pt-slope-to-vector
-  "Given a point, and a slope, makes a vector from point with that slope.
-  The slope is a y x vector, instead of a float. (So it can be calculated as
-  y/x)."
-  [pt slope]
-  [(+ (first pt) (second slope)) (+ (second pt) (first slope))])
 
 (defn normal-slope
   "Returns a [y x] pair denoting the slope of the normal at the given [X Y]
@@ -102,7 +94,6 @@
 (loop [pt1 [0 10.1]
        pt2 [1.4 -9.6]
        reflect-count 1]
-  (println "Reflection" reflect-count pt2)
   (let [nxt (next-point pt1 pt2)
         nxt-pt (first nxt)]   ; nxt is a vector [point, incident_vec]
     (if (not (escaped-hole? nxt-pt))
