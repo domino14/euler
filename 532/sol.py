@@ -8,11 +8,11 @@ class Point(object):
 
     """
     # 24 18
-    TINY_STEP_SIZE = 2**-16
+    TINY_STEP_SIZE = 2**-11
     # The difference in spherical coordinates before two points are the same.
     # Maybe convert to cartesian diff?
     # Should be bigger than TINY_STEP_SIZE so there is no bouncing
-    EPSILON = 2**-14
+    EPSILON = 2**-10
 
     def __init__(self, lat, lon):
         # self.x1 = x1
@@ -21,6 +21,8 @@ class Point(object):
         self.lat = lat
         self.lon = lon
         self.traveled = 0
+        self.lat_backup = 0
+        self.lon_backup = 0
 
     def travel(self, p2):
         """
@@ -36,6 +38,8 @@ class Point(object):
         # because our radius is 1.
 
         d = geodesic_distance(self, p2)
+        if d < self.EPSILON:
+            return False
         # print 'distance is still', d
         A = math.sin((1-self.TINY_STEP_SIZE)*d) / math.sin(d)
         B = math.sin(self.TINY_STEP_SIZE * d) / math.sin(d)
@@ -49,10 +53,7 @@ class Point(object):
         self.lat_backup = math.atan2(z, math.sqrt(x**2 + y**2))
         self.lon_backup = math.atan2(y, x)
         self.traveled += self.TINY_STEP_SIZE * d
-        # Now check to see if we're super close.
-        if (abs(self.lat_backup - p2.lat) < self.EPSILON and
-                abs(self.lon_backup - p2.lon) < self.EPSILON):
-            return False
+
         return True
 
     def update_position(self):
@@ -63,8 +64,20 @@ class Point(object):
         # print 'updated position to', self.theta, self.phi
 
 
+hav_memo = {}
+
+
 def hav(angle):
-    return math.sin(angle/2)**2
+    if len(hav_memo) < 5000000:
+        if not angle in hav_memo:
+            hav_memo[angle] = math.sin(angle/2)**2
+        return hav_memo[angle]
+    else:
+        return math.sin(angle/2)**2
+
+
+def asin_sqrt(d):
+    return math.asin(math.sqrt(d))
 
 
 def geodesic_distance(p1, p2):
@@ -72,7 +85,7 @@ def geodesic_distance(p1, p2):
     delta_lat = abs(p1.lat - p2.lat)
     delta_lon = abs(p1.lon - p2.lon)
     d = hav(delta_lat) + math.cos(p1.lat)*math.cos(p2.lat)*hav(delta_lon)
-    return 2 * math.asin(math.sqrt(d))
+    return 2 * asin_sqrt(d)
 
 
 def small_circle_latitude(radius):
@@ -107,24 +120,45 @@ def place_robots(n):
     return robots
 
 
-robots = place_robots(100)
-# Iterate.. will this work?
+def get_length_for_robots(n):
+    robots = place_robots(n)
+    # Iterate.. will this work?
+    lon_diff = 2 * math.pi / n
+    traveling = True
+    iterations = 0
+    while traveling:
+        iterations += 1
+        for i, robot in enumerate(robots):
+            if i < len(robots) - 1:
+                next_robot = robots[i+1]
+            else:
+                next_robot = robots[0]
+            # Only move robots 0, 1, and 2.
+            # 2 is needed so that 1 can move to it
+            # 0 then moves to 1. The problem is symmetric so
+            # we don't need to worry about the other robots.
+            if i == 0:
+                traveling = robot.travel(next_robot)
+                robot.update_position()
+            else:
+                # This is symmetric, dont need to recalculate every time.
+                robot.lat = robots[0].lat
+                robot.lon = robots[0].lon + (i * lon_diff)
+                robot.traveled = robots[0].traveled
+        if iterations % 100000 == 0:
+            print 'iterations:', iterations
+            print 'memo_length:', len(hav_memo)
+        #for robot in robots:
+        #    robot.update_position()
 
+    return sum([robot.traveled for robot in robots])
+    # return robots[0].traveled * n
 
-traveling = True
-iterations = 0
-while traveling:
-    iterations += 1
-    for i, robot in enumerate(robots):
-        if i < len(robots) - 1:
-            next_robot = robots[i+1]
-        else:
-            next_robot = robots[0]
-        traveling = robot.travel(next_robot)
-    if iterations % 1000 == 0:
-        print 'iterations:', iterations
-    for robot in robots:
-        robot.update_position()
-    # print '---'
-
-print sum([robot.traveled for robot in robots])
+n = 2
+while True:
+    l = get_length_for_robots(n)
+    print 'length for %s robots is %s, per_robot %s' % (n, l, l/n)
+    if l / n >= 1000:
+        print 'total length is', l, 'num robots', n
+        break
+    n += 1
