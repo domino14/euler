@@ -1,6 +1,17 @@
 import math
 
 
+class Memoize(object):
+    def __init__(self, f):
+        self.f = f
+        self.memo = {}
+
+    def __call__(self, *args):
+        if not args in self.memo:
+            self.memo[args] = self.f(*args)
+        return self.memo[args]
+
+
 class Point(object):
     """
     A point on the surface of a sphere. Assume the
@@ -8,11 +19,12 @@ class Point(object):
 
     """
     # 24 18
+    # 11 8 seems to work
     TINY_STEP_SIZE = 2**-11
     # The difference in spherical coordinates before two points are the same.
     # Maybe convert to cartesian diff?
     # Should be bigger than TINY_STEP_SIZE so there is no bouncing
-    EPSILON = 2**-10
+    EPSILON = 2**-8
 
     def __init__(self, lat, lon):
         # self.x1 = x1
@@ -40,19 +52,24 @@ class Point(object):
         d = geodesic_distance(self, p2)
         if d < self.EPSILON:
             return False
+        sin_d = memo_sin(d)
+        cos_lat = memo_cos(self.lat)
+        cos_lon = memo_cos(self.lon)
+        cos_p2_lat = memo_cos(p2.lat)
+        cos_p2_lon = memo_cos(p2.lon)
+        dist_traveled = self.TINY_STEP_SIZE * d
         # print 'distance is still', d
-        A = math.sin((1-self.TINY_STEP_SIZE)*d) / math.sin(d)
-        B = math.sin(self.TINY_STEP_SIZE * d) / math.sin(d)
-        x = A * math.cos(self.lat) * math.cos(self.lon) + B * math.cos(
-            p2.lat) * math.cos(p2.lon)
-        y = A * math.cos(self.lat) * math.sin(self.lon) + B * math.cos(
-            p2.lat) * math.sin(p2.lon)
-        z = A * math.sin(self.lat) + B * math.sin(p2.lat)
+        A = memo_sin((1-self.TINY_STEP_SIZE)*d) / sin_d
+        B = memo_sin(dist_traveled) / sin_d
+        x = A * cos_lat * cos_lon + B * cos_p2_lat * cos_p2_lon
+        y = A * cos_lat * memo_sin(self.lon) + B * cos_p2_lat * memo_sin(
+            p2.lon)
+        z = A * memo_sin(self.lat) + B * memo_sin(p2.lat)
 
         # Update distance
-        self.lat_backup = math.atan2(z, math.sqrt(x**2 + y**2))
-        self.lon_backup = math.atan2(y, x)
-        self.traveled += self.TINY_STEP_SIZE * d
+        self.lat_backup = memo_atan2(z, memo_sqrt(x**2 + y**2))
+        self.lon_backup = memo_atan2(y, x)
+        self.traveled += dist_traveled
 
         return True
 
@@ -64,27 +81,26 @@ class Point(object):
         # print 'updated position to', self.theta, self.phi
 
 
-hav_memo = {}
-
-
 def hav(angle):
-    if len(hav_memo) < 5000000:
-        if not angle in hav_memo:
-            hav_memo[angle] = math.sin(angle/2)**2
-        return hav_memo[angle]
-    else:
-        return math.sin(angle/2)**2
+    return math.sin(angle/2)**2
+
+hav = Memoize(hav)
+memo_sin = math.sin
+memo_cos = math.cos
+memo_atan2 = math.atan2
+memo_sqrt = math.sqrt
+memo_asin = math.asin
 
 
 def asin_sqrt(d):
-    return math.asin(math.sqrt(d))
+    return memo_asin(memo_sqrt(d))
 
 
 def geodesic_distance(p1, p2):
     # Use haversine formula, assume radius = 1
-    delta_lat = abs(p1.lat - p2.lat)
-    delta_lon = abs(p1.lon - p2.lon)
-    d = hav(delta_lat) + math.cos(p1.lat)*math.cos(p2.lat)*hav(delta_lon)
+    delta_lat = p1.lat - p2.lat
+    delta_lon = p1.lon - p2.lon
+    d = hav(delta_lat) + memo_cos(p1.lat)*memo_cos(p2.lat)*hav(delta_lon)
     return 2 * asin_sqrt(d)
 
 
@@ -94,14 +110,14 @@ def small_circle_latitude(radius):
     Assume sphere has radius 1.
     """
     # Use Pythagoras.
-    h = math.sqrt(1 - radius**2)
+    h = memo_sqrt(1 - radius**2)
     # h is the height of the latitude line over the center of the sphere.
     # convert to spherical coordinates:
     # x = 0
     # y = radius
     # z = h
     # Assume theta is elevation from the reference plane.
-    theta = math.asin(h / math.sqrt(radius**2 + h**2))
+    theta = memo_asin(h / memo_sqrt(radius**2 + h**2))
     # phi = math.atan2(radius, 0)
     return theta
 
@@ -116,7 +132,7 @@ def place_robots(n):
     for i in range(n):
         longitude = i * (2*math.pi/n)
         robots.append(Point(latitude, longitude))
-
+        print 'robot', i, latitude, longitude
     return robots
 
 
@@ -133,10 +149,6 @@ def get_length_for_robots(n):
                 next_robot = robots[i+1]
             else:
                 next_robot = robots[0]
-            # Only move robots 0, 1, and 2.
-            # 2 is needed so that 1 can move to it
-            # 0 then moves to 1. The problem is symmetric so
-            # we don't need to worry about the other robots.
             if i == 0:
                 traveling = robot.travel(next_robot)
                 robot.update_position()
@@ -145,20 +157,25 @@ def get_length_for_robots(n):
                 robot.lat = robots[0].lat
                 robot.lon = robots[0].lon + (i * lon_diff)
                 robot.traveled = robots[0].traveled
+        if iterations == 1:
+            print robots[0].lat, robots[0].lon
         if iterations % 100000 == 0:
             print 'iterations:', iterations
-            print 'memo_length:', len(hav_memo)
+            print 'memo_lengths: %s' % (
+                len(hav.memo)
+            )
         #for robot in robots:
         #    robot.update_position()
 
     return sum([robot.traveled for robot in robots])
     # return robots[0].traveled * n
 
-n = 2
-while True:
-    l = get_length_for_robots(n)
-    print 'length for %s robots is %s, per_robot %s' % (n, l, l/n)
-    if l / n >= 1000:
-        print 'total length is', l, 'num robots', n
-        break
-    n += 1
+if __name__ == '__main__':
+    n = 2
+    while True:
+        l = get_length_for_robots(n)
+        print 'length for %s robots is %s, per_robot %s' % (n, l, l/n)
+        if l / n >= 1000:
+            print 'total length is', l, 'num robots', n
+            break
+        n += 1
