@@ -28,7 +28,7 @@ def is_prime(p):
 # Generate all combos
 
 def solve():
-    for n in range(9, 2, -1):
+    for n in range(7, 2, -1):
         # range is backwards as itertools.permutations generates
         # lexicographically sorted permutations in the order they're
         # given and we want to start with bigger numbers.
