@@ -12,6 +12,7 @@ def gen_pen(n):
 # Let's try 10000. Naive solution.
 pentagonal_numbers = set(gen_pen(10000))
 min_diff = sys.maxint
+min_q, min_p = None, None
 for p in pentagonal_numbers:
     for q in pentagonal_numbers:
         if p == q:
@@ -19,6 +20,7 @@ for p in pentagonal_numbers:
         if p + q in pentagonal_numbers and abs(p - q) in pentagonal_numbers:
             if abs(p - q) < min_diff:
                 min_diff = abs(p - q)
+                min_q = q
+                min_p = p
 
-
-print min_diff
+print min_diff, min_q, min_p
