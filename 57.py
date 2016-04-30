@@ -50,6 +50,7 @@ def solve():
         result = add_fractions(frac, (1, 1))
         if len(str(result[0])) > len(str(result[1])):
             ans += 1
+        print result[0], result[1]
     return ans
 
 if __name__ == "__main__":
